@@ -1,0 +1,278 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Shared Hardened Primitives
+    // -------------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // -------------------------------------------------------------------------
+    // Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'role', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 80
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 120
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.role is string
+        && data.role == 'operator'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWorkspacePreference(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'defaultLine',
+          'alertThreshold',
+          'preferredChannelCapacity',
+          'preferredBatchSize',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'defaultLine',
+          'alertThreshold',
+          'preferredChannelCapacity',
+          'preferredBatchSize',
+          'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.defaultLine in ['All', 'Line A', 'Line B', 'Body Shop', 'Paint & Coating', 'Powertrain', 'Final Assembly']
+        && data.alertThreshold is number
+        && data.alertThreshold >= 50
+        && data.alertThreshold <= 99
+        && data.preferredChannelCapacity is number
+        && data.preferredChannelCapacity >= 50
+        && data.preferredChannelCapacity <= 10000
+        && data.preferredBatchSize is number
+        && data.preferredBatchSize >= 1
+        && data.preferredBatchSize <= 50
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSavedSnapshot(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'title',
+          'notes',
+          'machineId',
+          'productionLine',
+          'fleetEfficiency',
+          'optimalMachines',
+          'attentionMachines',
+          'totalEvents',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'title',
+          'notes',
+          'machineId',
+          'productionLine',
+          'fleetEfficiency',
+          'optimalMachines',
+          'attentionMachines',
+          'totalEvents',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 100
+        && data.notes is string
+        && data.notes.size() <= 600
+        && data.machineId is string
+        && data.machineId.size() >= 1
+        && data.machineId.size() <= 16
+        && data.machineId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.productionLine in ['All', 'Line A', 'Line B', 'Body Shop', 'Paint & Coating', 'Powertrain', 'Final Assembly']
+        && data.fleetEfficiency is number
+        && data.fleetEfficiency >= 0
+        && data.fleetEfficiency <= 100
+        && data.optimalMachines is number
+        && data.optimalMachines >= 0
+        && data.optimalMachines <= 100
+        && data.attentionMachines is number
+        && data.attentionMachines >= 0
+        && data.attentionMachines <= 100
+        && data.totalEvents is number
+        && data.totalEvents >= 0
+        && data.status in ['open', 'reviewed', 'resolved']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChecklistState(data, userId, itemId) {
+      return data.keys().hasAll(['uid', 'itemId', 'completed', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'itemId', 'completed', 'updatedAt'])
+        && data.uid is string
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.itemId is string
+        && data.itemId == itemId
+        && data.itemId.size() >= 1
+        && data.itemId.size() <= 64
+        && data.itemId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.completed is bool
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().role == existing().role
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'photoURL', 'updatedAt']);
+
+      allow delete: if false;
+
+      // Subcollection: Workspace Preferences
+      match /preferences/{prefId} {
+        allow get: if isValidId(userId) && isValidId(prefId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(prefId)
+          && isOwner(userId)
+          && isValidWorkspacePreference(incoming(), userId)
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if isValidId(userId)
+          && isValidId(prefId)
+          && isOwner(userId)
+          && isValidWorkspacePreference(incoming(), userId)
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'defaultLine',
+            'alertThreshold',
+            'preferredChannelCapacity',
+            'preferredBatchSize',
+            'updatedAt'
+          ]);
+
+        allow delete: if false;
+      }
+
+      // Subcollection: Saved Manufacturing Trend Snapshots
+      match /savedSnapshots/{snapshotId} {
+        allow get: if isValidId(userId) && isValidId(snapshotId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(snapshotId)
+          && isOwner(userId)
+          && isValidSavedSnapshot(incoming(), userId)
+          && incoming().status == 'open'
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if isValidId(userId)
+          && isValidId(snapshotId)
+          && isOwner(userId)
+          && isValidSavedSnapshot(incoming(), userId)
+          && existing().status != 'resolved'
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            (incoming().diff(existing()).affectedKeys().hasOnly(['title', 'notes', 'updatedAt'])) ||
+            (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              && (
+                (existing().status == 'open' && incoming().status in ['reviewed', 'resolved']) ||
+                (existing().status == 'reviewed' && incoming().status == 'resolved')
+              ))
+          );
+
+        allow delete: if isValidId(userId) && isValidId(snapshotId) && isOwner(userId);
+      }
+
+      // Subcollection: Deployment Checklist States
+      match /checklistStates/{itemId} {
+        allow get: if isValidId(userId) && isValidId(itemId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(itemId)
+          && isOwner(userId)
+          && isValidChecklistState(incoming(), userId, itemId)
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if isValidId(userId)
+          && isValidId(itemId)
+          && isOwner(userId)
+          && isValidChecklistState(incoming(), userId, itemId)
+          && incoming().uid == existing().uid
+          && incoming().itemId == existing().itemId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'updatedAt']);
+
+        allow delete: if isValidId(userId) && isValidId(itemId) && isOwner(userId);
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Manufacturing Data Analytics — Apache Flume Console",
+  "description": "Full-stack manufacturing telemetry and big data trend analysis workbench powered by an Apache Flume ingestion pipeline, Express.js processing microservice, and persistent SQLite HDFS warehouse.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

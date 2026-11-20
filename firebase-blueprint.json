@@ -1,0 +1,201 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated manufacturing operator profile bound to Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "role": {
+          "type": "string",
+          "enum": ["operator"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "email", "role", "createdAt", "updatedAt"]
+    },
+    "WorkspacePreference": {
+      "title": "WorkspacePreference",
+      "description": "Operator-specific Flume configuration preset and dashboard filter defaults.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "defaultLine": {
+          "type": "string",
+          "enum": ["All", "Line A", "Line B", "Body Shop", "Paint & Coating", "Powertrain", "Final Assembly"]
+        },
+        "alertThreshold": {
+          "type": "number"
+        },
+        "preferredChannelCapacity": {
+          "type": "number"
+        },
+        "preferredBatchSize": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "defaultLine",
+        "alertThreshold",
+        "preferredChannelCapacity",
+        "preferredBatchSize",
+        "updatedAt"
+      ]
+    },
+    "SavedSnapshot": {
+      "title": "SavedSnapshot",
+      "description": "Saved manufacturing trend analysis snapshot and operator incident note.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "machineId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "productionLine": {
+          "type": "string",
+          "enum": ["All", "Line A", "Line B", "Body Shop", "Paint & Coating", "Powertrain", "Final Assembly"]
+        },
+        "fleetEfficiency": {
+          "type": "number"
+        },
+        "optimalMachines": {
+          "type": "number"
+        },
+        "attentionMachines": {
+          "type": "number"
+        },
+        "totalEvents": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "reviewed", "resolved"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "title",
+        "notes",
+        "machineId",
+        "productionLine",
+        "fleetEfficiency",
+        "optimalMachines",
+        "attentionMachines",
+        "totalEvents",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ChecklistState": {
+      "title": "ChecklistState",
+      "description": "User-scoped deployment checklist completion state persisted in Firestore.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "itemId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "itemId", "completed", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Owner-isolated operator profile containing Google Auth metadata."
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": {
+        "$ref": "#/entities/WorkspacePreference"
+      },
+      "description": "Saved Flume pipeline and dashboard preference defaults per operator."
+    },
+    "/users/{userId}/savedSnapshots/{snapshotId}": {
+      "schema": {
+        "$ref": "#/entities/SavedSnapshot"
+      },
+      "description": "Operator-saved manufacturing trend analysis snapshots and incident logs."
+    },
+    "/users/{userId}/checklistStates/{itemId}": {
+      "schema": {
+        "$ref": "#/entities/ChecklistState"
+      },
+      "description": "Per-operator deployment readiness checklist completion records."
+    }
+  }
+}

@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: flume-manufacturing-analytics
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/microservice/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: https://banded-order-th7nb.web.app,https://banded-order-th7nb.firebaseapp.com
